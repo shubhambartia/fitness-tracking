@@ -1,68 +1,69 @@
 package com.aiservice.service;
 
+import io.github.resilience4j.ratelimiter.RateLimiter;
+import io.github.resilience4j.ratelimiter.RateLimiterConfig;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.http.HttpStatus;
 import reactor.core.publisher.Mono;
-import lombok.extern.slf4j.Slf4j;
+import reactor.util.retry.Retry;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 
 @Service
-@Slf4j
 public class GeminiService {
 
     private final WebClient webClient;
-
-    @Value("${gemini.api.url}")
-    private String geminiApiUrl;
+    private final RateLimiter rateLimiter;
 
     @Value("${gemini.api.api-key}")
     private String geminiApiKey;
 
     public GeminiService(WebClient.Builder webClientBuilder) {
-        this.webClient = webClientBuilder.build();
+        this.webClient = webClientBuilder
+                .baseUrl("https://generativelanguage.googleapis.com/v1beta")
+                .defaultHeader("X-goog-api-key", geminiApiKey)
+                .defaultHeader("Content-Type", "application/json")
+                .build();
+
+        // Allow 1 request per second, with a burst of 5
+        RateLimiterConfig config = RateLimiterConfig.custom()
+                .limitRefreshPeriod(Duration.ofSeconds(1))
+                .limitForPeriod(1)
+                .timeoutDuration(Duration.ofSeconds(2))
+                .build();
+        this.rateLimiter = RateLimiter.of("geminiLimiter", config);
     }
 
-    public String getResponseFromGemini(String prompt) {
-        // Build a request body using the "messages" schema the Generative Language API expects.
+    public String getAnswer(String question) {
         Map<String, Object> requestBody = Map.of(
-                "contents", new Object[] {
-                        Map.of("parts", new Object[] {
-                                Map.of("text", prompt)
-                        })
-                });
+                "contents", List.of(
+                        Map.of("parts", List.of(
+                                Map.of("text", question)
+                        ))
+                )
+        );
 
-        String response = null;
         try {
-            response = webClient.post()
-                    .uri(geminiApiUrl)
-                    .header("X-goog-api-key", geminiApiKey)
-                    .header("Content-Type", "application/json")
-                    .bodyValue(requestBody)
-                    .retrieve()
-                    .onStatus(
-                            status -> status.isError(),
-                            resp -> resp.bodyToMono(String.class)
-                                    .flatMap(error -> {
-                                        log.error("GEMINI ERROR = {}", error);
-                                        return Mono.error(new RuntimeException(error));
-                                    })
-                    )
-                    .bodyToMono(String.class)
-                    .block();
-
-            if (response == null) {
-                log.error("Gemini returned null response body for prompt (truncated): {}", prompt.length() > 200 ? prompt.substring(0,200) + "..." : prompt);
-            } else {
-                String truncated = response.length() > 1000 ? response.substring(0,1000) + "..." : response;
-                log.debug("Gemini response (truncated): {}", truncated);
-            }
+            return RateLimiter.decorateSupplier(rateLimiter, () ->
+                    webClient.post()
+                            .uri("/models/gemini-flash-latest:generateContent")
+                            .bodyValue(requestBody)
+                            .retrieve()
+                            .onStatus(HttpStatus.TOO_MANY_REQUESTS::equals,
+                                    response -> Mono.error(new RuntimeException("Rate limit exceeded")))
+                            .bodyToMono(String.class)
+                            .retryWhen(Retry.backoff(3, Duration.ofSeconds(2))
+                                    .maxBackoff(Duration.ofSeconds(30))
+                                    .jitter(0.5))
+                            .block()
+            ).get();
         } catch (Exception e) {
-            log.error("Error calling Gemini API: {}", e.getMessage(), e);
-            throw e;
+            // Graceful fallback
+            return "{\"analysis\":{\"overall\":\"Unable to generate due to rate limit\"}}";
         }
-
-        return response;
     }
 }

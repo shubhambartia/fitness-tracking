@@ -1,16 +1,15 @@
 package com.aiservice.service;
 
-import com.aiservice.model.Activity;
-import com.aiservice.model.Recommendation;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aiservice.model.Activity;
+import com.aiservice.model.Recommendation;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -18,48 +17,42 @@ import java.util.List;
 @Slf4j
 @RequiredArgsConstructor
 public class ActivityAIService {
-
     private final GeminiService geminiService;
 
-    public Recommendation generateActivitySummary(Activity activityData) {
-        String prompt = createPromptForActivity(activityData);
-        String responseFromGemini = geminiService.getResponseFromGemini(prompt);
-        return processAiResponse(activityData, responseFromGemini);
+    public Recommendation generateRecommendation(Activity activity) {
+        String prompt = createPromptForActivity(activity);
+        String aiResponse = geminiService.getAnswer(prompt);
+        log.info("RESPONSE FROM AI: {} ", aiResponse);
+        return processAiResponse(activity, aiResponse);
     }
 
     private Recommendation processAiResponse(Activity activity, String aiResponse) {
         try {
-            if (aiResponse == null || aiResponse.isBlank()) {
-                log.error("AI response is null or empty for activity {}", activity.getId());
-                return createDefaultRecommendation(activity);
-            }
-
             ObjectMapper mapper = new ObjectMapper();
             JsonNode rootNode = mapper.readTree(aiResponse);
 
-            JsonNode candidates = rootNode.path("candidates");
-            if (candidates.isMissingNode() || !candidates.isArray() || candidates.size() == 0) {
-                log.error("No candidates found in AI response for activity {}: {}", activity.getId(), aiResponse);
+            JsonNode candidatesNode = rootNode.path("candidates");
+            if (!candidatesNode.isArray() || candidatesNode.size() == 0) {
+                // Fallback if Gemini didn’t return candidates
                 return createDefaultRecommendation(activity);
             }
 
-            JsonNode contentNode = candidates.get(0).path("content");
-            JsonNode partsNode = contentNode.path("parts");
-            if (partsNode.isMissingNode() || !partsNode.isArray() || partsNode.size() == 0) {
-                log.error("No parts found in AI response content for activity {}: {}", activity.getId(), aiResponse);
+            JsonNode textNode = candidatesNode.get(0)
+                    .path("content")
+                    .path("parts")
+                    .get(0)
+                    .path("text");
+
+            if (textNode.isMissingNode()) {
                 return createDefaultRecommendation(activity);
             }
 
-            String text = partsNode.get(0).path("text").asText();
-            String jsonContent = text
-                    .replaceAll("```json\\n","")
-                    .replaceAll("\\n```", "")
+            String jsonContent = textNode.asText()
+                    .replaceAll("```[a-zA-Z]*\\n?", "")
+                    .replaceAll("```", "")
                     .trim();
 
-            if (jsonContent.isBlank()) {
-                log.error("Extracted JSON content is empty for activity {}. raw text: {}", activity.getId(), text);
-                return createDefaultRecommendation(activity);
-            }
+//            log.info("PARSED RESPONSE FROM AI: {} ", jsonContent);
 
             JsonNode analysisJson = mapper.readTree(jsonContent);
             JsonNode analysisNode = analysisJson.path("analysis");
@@ -86,7 +79,7 @@ public class ActivityAIService {
                     .build();
 
         } catch (Exception e) {
-            log.error("Error processing AI response for activity {}: {}", activity.getId(), e.getMessage(), e);
+            e.printStackTrace();
             return createDefaultRecommendation(activity);
         }
     }
@@ -96,14 +89,10 @@ public class ActivityAIService {
                 .activityId(activity.getId())
                 .userId(activity.getUserId())
                 .activityType(activity.getType())
-                .recommendation("Unable to generate detailed analysis")
-                .improvements(Collections.singletonList("Continue with your current routine"))
-                .suggestions(Collections.singletonList("Consider consulting a fitness professional"))
-                .safety(Arrays.asList(
-                        "Always warm up before exercise",
-                        "Stay hydrated",
-                        "Listen to your body"
-                ))
+                .recommendation("AI service unavailable, using default guidance")
+                .improvements(List.of("Continue with your current routine"))
+                .suggestions(List.of("Consider consulting a fitness professional"))
+                .safety(List.of("Always warm up", "Stay hydrated", "Listen to your body"))
                 .createdAt(LocalDateTime.now())
                 .build();
     }
