@@ -2,6 +2,7 @@ package com.aiservice.service;
 
 import io.github.resilience4j.ratelimiter.RateLimiter;
 import io.github.resilience4j.ratelimiter.RateLimiterConfig;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -14,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class GeminiService {
 
     private final WebClient webClient;
@@ -23,6 +25,7 @@ public class GeminiService {
     private String geminiApiKey;
 
     public GeminiService(WebClient.Builder webClientBuilder) {
+        log.info("geminiApiKey: {}", geminiApiKey);
         this.webClient = webClientBuilder
                 .baseUrl("https://generativelanguage.googleapis.com/v1beta")
                 .defaultHeader("X-goog-api-key", geminiApiKey)
