@@ -1,11 +1,11 @@
 spring:
   application:
     name: api-gateway
-  security:
-    oauth2:
-      resourceserver:
-        jwt:
-          jwk-set-uri: http://localhost:8181/realms/fitness-oauth2/protocol/openid-connect/certs
+#  security:
+#    oauth2:
+#      resourceserver:
+#        jwt:
+#          jwk-set-uri: http://localhost:8181/realms/fitness-oauth2/protocol/openid-connect/certs
   cloud:
     gateway:
       routes:
@@ -14,7 +14,7 @@ spring:
           predicates:
             - Path=/api/users/**
 
-        - id: activity-service
+        - id: user-service
           uri: lb://USER-ACTIVITY
           predicates:
             - Path=/api/activities/**
@@ -26,8 +26,3 @@ spring:
 
 server:
   port: 8080
-
-eureka:
-  client:
-    serviceUrl:
-      defaultZone: http://localhost:8761/eureka/

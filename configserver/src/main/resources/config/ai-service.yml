@@ -17,7 +17,7 @@ spring:
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://localhost:8761/eureka/  
 
 rabbitmq:
   exchange:
@@ -29,5 +29,4 @@ rabbitmq:
 
 gemini:
   api:
-    url: ${GEMINI_API_URL}
     api-key: ${GEMINI_API_KEY}
