@@ -1,28 +1,37 @@
+server:
+  port: 8080
+
 spring:
   application:
     name: api-gateway
-#  security:
-#    oauth2:
-#      resourceserver:
-#        jwt:
-#          jwk-set-uri: http://localhost:8181/realms/fitness-oauth2/protocol/openid-connect/certs
-  cloud:
-    gateway:
-      routes:
-        - id: user-service
-          uri: lb://USER-SERVICE
-          predicates:
-            - Path=/api/users/**
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8181/realms/fitness-oauth2/protocol/openid-connect/certs
 
-        - id: user-service
-          uri: lb://USER-ACTIVITY
-          predicates:
-            - Path=/api/activities/**
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,gateway
 
-        - id: ai-service
-          uri: lb://AI-SERVICE
-          predicates:
-            - Path=/api/recommendations/**
+cloud:
+  gateway:
+    server:
+      webflux:
+        routes:
+          - id: user-service
+            uri: lb://USER-SERVICE
+            predicates:
+              - Path=/api/users/**
 
-server:
-  port: 8080
+          - id: activity-service
+            uri: lb://ACTIVITY-SERVICE
+            predicates:
+              - Path=/api/activities/**
+
+          - id: ai-service
+            uri: lb://AI-SERVICE
+            predicates:
+              - Path=/api/recommendations/**
