@@ -21,7 +21,7 @@ public class GeminiService {
     private final WebClient webClient;
     private final RateLimiter rateLimiter;
 
-    @Value("${gemini.api.api-key}")
+    @Value("${gemini.api.api-key:dummy-key}")
     private String geminiApiKey;
 
     public GeminiService(WebClient.Builder webClientBuilder) {

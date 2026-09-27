@@ -21,10 +21,10 @@ public class ActivityService {
     private final UserValidationService userValidationService;
     private final RabbitTemplate rabbitTemplate;
 
-    @Value("${rabbitmq.exchange.name}")
+    @Value("${rabbitmq.exchange.name:fitness.exchange}")
     private String exchange;
 
-    @Value("${rabbitmq.routing.key}")
+    @Value("${rabbitmq.routing.key:tracking}")
     private String routingKey;
 
     public ActivityResponse trackActivity(ActivityRequest request) {
