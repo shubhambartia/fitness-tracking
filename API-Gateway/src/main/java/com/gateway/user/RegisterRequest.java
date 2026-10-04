@@ -1,4 +1,4 @@
-package com.userservice.dto;
+package com.gateway.user;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -15,9 +15,9 @@ public class RegisterRequest {
     @Size(min = 6, message = "Password must have atleast 6 characters")
     private String password;
 
-    @NotBlank(message = "Keycloak ID is required")
     private String keyCloakId;
 
     private String firstName;
     private String lastName;
 }
+

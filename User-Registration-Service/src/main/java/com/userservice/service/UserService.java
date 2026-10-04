@@ -16,11 +16,15 @@ public class UserService {
     private UserRepository repository;
 
     public UserResponse register(RegisterRequest request) {
+        if (request.getKeyCloakId() == null || request.getKeyCloakId().isBlank()) {
+            throw new IllegalArgumentException("Keycloak ID is required");
+        }
 
         if (repository.existsByEmail(request.getEmail())) {
             User existingUser = repository.findByEmail(request.getEmail());
             UserResponse userResponse = new UserResponse();
             userResponse.setId(existingUser.getId());
+            userResponse.setKeyCloakId(existingUser.getKeyCloakId());
             userResponse.setPassword(existingUser.getPassword());
             userResponse.setEmail(existingUser.getEmail());
             userResponse.setFirstName(existingUser.getFirstName());
@@ -35,10 +39,12 @@ public class UserService {
         user.setPassword(request.getPassword());
         user.setFirstName(request.getFirstName());
         user.setLastName(request.getLastName());
+        user.setKeyCloakId(request.getKeyCloakId());
 
         User savedUser = repository.save(user);
         UserResponse userResponse = new UserResponse();
         userResponse.setId(savedUser.getId());
+        userResponse.setKeyCloakId(savedUser.getKeyCloakId());
         userResponse.setPassword(savedUser.getPassword());
         userResponse.setEmail(savedUser.getEmail());
         userResponse.setFirstName(savedUser.getFirstName());
@@ -55,6 +61,7 @@ public class UserService {
 
         UserResponse userResponse = new UserResponse();
         userResponse.setId(user.getId());
+        userResponse.setKeyCloakId(user.getKeyCloakId());
         userResponse.setPassword(user.getPassword());
         userResponse.setEmail(user.getEmail());
         userResponse.setFirstName(user.getFirstName());
@@ -66,6 +73,6 @@ public class UserService {
     }
 
     public Boolean existByUserId(String userId) {
-        return repository.existsById(userId);
+        return repository.existsByKeyCloakId(userId);
     }
 }
