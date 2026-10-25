@@ -6,8 +6,10 @@ import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
 import org.springframework.web.server.WebFilterChain;
@@ -34,7 +36,7 @@ public class KeycloakUserSyncFilter implements WebFilter {
             }
         }
 
-        if (userId != null && token != null && token.startsWith("Bearer ")) {
+        if (userId != null && token != null && isBearerToken(token)) {
             log.info("Validating user with ID: {}", userId);
 
             String finalUserId = userId;
@@ -42,35 +44,44 @@ public class KeycloakUserSyncFilter implements WebFilter {
                     .flatMap(isValid -> {
                         if (!isValid) {
                             log.warn("User with ID: {} is not valid", finalUserId);
-                            if (registerRequest != null) {
+                            if (registerRequest != null && registerRequest.getKeyCloakId() != null) {
                                 return userService.registerUser(registerRequest)
-                                        .then(Mono.empty());
+                                        .then(proceedWithRequest(serverWebExchange, webFilterChain, finalUserId));
                             }
-                            return Mono.empty();
+                            return Mono.error(new ResponseStatusException(
+                                    HttpStatus.UNAUTHORIZED,
+                                    "User with ID: " + finalUserId + " is not valid"));
                         }
 
                         log.info("User with ID: {} is valid", finalUserId);
-                        return Mono.empty();
-                    })
-                    .then(Mono.defer(() -> {
-                        ServerHttpRequest mutatedRequest = serverWebExchange.getRequest().mutate()
-                                .header("X-User-Id", finalUserId)
-                                .build();
-
-                        return webFilterChain.filter(serverWebExchange.mutate().request(mutatedRequest).build());
-                    }));
+                        return proceedWithRequest(serverWebExchange, webFilterChain, finalUserId);
+                    });
         }
 
         return webFilterChain.filter(serverWebExchange);
     }
 
+    private Mono<Void> proceedWithRequest(ServerWebExchange serverWebExchange,
+                                         WebFilterChain webFilterChain,
+                                         String userId) {
+        ServerHttpRequest mutatedRequest = serverWebExchange.getRequest().mutate()
+                .header("X-User-Id", userId)
+                .build();
+
+        return webFilterChain.filter(serverWebExchange.mutate().request(mutatedRequest).build());
+    }
+
+    private boolean isBearerToken(String token) {
+        return token != null && token.trim().length() > 7 && token.regionMatches(true, 0, "Bearer ", 0, 7);
+    }
+
     private RegisterRequest getUserDetailsFromToken(String token) {
-        if (token == null || !token.startsWith("Bearer ")) {
+        if (!isBearerToken(token)) {
             return null;
         }
 
         try {
-            String tokenWithoutBearer = token.replace("Bearer ", "").trim();
+            String tokenWithoutBearer = token.replaceFirst("(?i)^Bearer\\s+", "").trim();
             SignedJWT signedJWT = SignedJWT.parse(tokenWithoutBearer);
             JWTClaimsSet claimsSet = signedJWT.getJWTClaimsSet();
 

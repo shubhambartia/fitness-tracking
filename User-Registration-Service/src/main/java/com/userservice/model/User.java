@@ -1,6 +1,7 @@
 package com.userservice.model;
 
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -18,7 +19,8 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(name = "keycloak_id", nullable = false)
+    @NotBlank(message = "Keycloak ID is required")
+    @Column(name = "keycloak_id", nullable = false, unique = true)
     private String keyCloakId;
 
     @Column(nullable = false)
